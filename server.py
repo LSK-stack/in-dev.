@@ -1,49 +1,47 @@
-from flask import Flask, request, send_file
-import datetime
-import requests
+from flask import Flask, request, render_template_string
 
 app = Flask(__name__)
 
-LOG_FILE = "ips.txt"
+# HTML template for displaying IP addresses
+html_template = '''
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>IP Viewer</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        #ip-list { margin-top: 20px; }
+        p { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Connected IP Addresses</h1>
+    <div id='ip-list'>
+        {% for ip in ip_addresses %}
+            <p>{{ ip }}</p>
+        {% endfor %}
+    </div>
+</body>
+</html>
+'''
 
-def get_ip_info(ip):
-    """Obtenir la géolocalisation d'une IP avec l'API ip-api.com"""
-    url = f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city,lat,lon,isp"
-    response = requests.get(url).json()
+# List to store IP addresses
+ip_addresses = []
 
-    if response["status"] == "success":
-        return {
-            "pays": response.get("country", "Inconnu"),
-            "région": response.get("regionName", "Inconnu"),
-            "ville": response.get("city", "Inconnu"),
-            "latitude": response.get("lat", "N/A"),
-            "longitude": response.get("lon", "N/A"),
-            "fournisseur": response.get("isp", "Inconnu")
-        }
-    return None
-
-@app.route('/pixel.png')
-def track_ip():
-    ip = request.remote_addr
-    user_agent = request.headers.get('User-Agent')
-    time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    ip_info = get_ip_info(ip)
-
-    if ip_info:
-        log_data = (f"{time} - IP: {ip} - Pays: {ip_info['pays']} - Région: {ip_info['région']} - "
-                    f"Ville: {ip_info['ville']} - Lat: {ip_info['latitude']} - Lon: {ip_info['longitude']} - "
-                    f"Fournisseur: {ip_info['fournisseur']} - User-Agent: {user_agent}")
-    else:
-        log_data = f"{time} - IP: {ip} - Géolocalisation indisponible - User-Agent: {user_agent}"
-
-    print(log_data)
-
-    with open(LOG_FILE, "a") as file:
-        file.write(log_data + "\n")
-
-    return send_file("pixel.png", mimetype='image/png')
+@app.route('/')
+def index():
+    # Get the visitor's IP address
+    visitor_ip = request.remote_addr
+    if visitor_ip and ',' in visitor_ip:
+        visitor_ip = visitor_ip.split(',')[0]  # Take the first IP (real visitor's IP)
+    
+    if visitor_ip not in ip_addresses:
+        ip_addresses.append(visitor_ip)
+    
+    return render_template_string(html_template, ip_addresses=ip_addresses)
 
 if __name__ == '__main__':
-    print("Serveur Flask démarré... Suivi des IPs en cours...")
-    app.run(host='0.0.0.0', port=5000)
+    app.run()
